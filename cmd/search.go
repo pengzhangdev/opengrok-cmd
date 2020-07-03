@@ -42,6 +42,9 @@ var def string
 var filename string
 var text string
 var workfile string
+//var opengork_history_avail bool
+//var opengrok_history_timestamp int64
+
 
 const opengrokHistoryDir = "/tmp/opengrok_history/"
 
@@ -127,7 +130,7 @@ to quickly create a Cobra application.`,
 			historyKey = historyKey + "&type=" + fileSuffix
 		}
 		var keys []FilePrio
-		keysLoaded, succ := loadHistory(historyKey)
+		keysLoaded, succ := loadHistory(historyKey, sourceRoot)
 
 		if succ == false {
 			if search_with_type == true && len(workfile) != 0 {
@@ -255,7 +258,7 @@ func md5v(historyKey string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func loadHistory(historyKey string) ([]FilePrio, bool) {
+func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 	var keys []FilePrio
 	md5Key := md5v(historyKey)
 	historyPath := path.Join(opengrokHistoryDir, md5Key)
@@ -264,9 +267,10 @@ func loadHistory(historyKey string) ([]FilePrio, bool) {
 		return nil, false
 	}
 
-	if (time.Now().Unix() - s.ModTime().Unix() > 60 * 60 * 8) {
-		return nil, false
-	}
+	//if (time.Now().Unix() - s.ModTime().Unix() > 60 * 60 * 8) {
+	//	return nil, false
+	//}
+	opengrok_history_timestamp := s.ModTime().Unix()
 
 	c, err := ioutil.ReadFile(historyPath)
 	if err != nil {
@@ -279,6 +283,18 @@ func loadHistory(historyKey string) ([]FilePrio, bool) {
 		fmt.Printf("Failed to json unmarshal %v\n", err)
 		return nil, false
 	}
+
+	for _, key := range keys {
+		path := path.Join(sourceRoot ,key.Path)
+		s, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			return nil, false
+		}
+		if s.ModTime().Unix() > opengrok_history_timestamp {
+			return nil, false
+		}
+	}
+
 	fmt.Printf("\nloaded from %s\n", historyPath)
 	return keys, true
 }
@@ -383,12 +399,13 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 				l = line
 				//fmt.Println(err)
 			}
-			l = html.UnescapeString(l)
-			l = strings.ReplaceAll(l, "<b>", "")
-			l = strings.ReplaceAll(l, "</b>", "")
 			if strings.Contains(l, "<html>") {
 				continue
 			}
+			l = html.UnescapeString(l)
+			l = strings.ReplaceAll(l, "<b>", "")
+			l = strings.ReplaceAll(l, "</b>", "")
+
 			results += filepath + ":" + lineNumber + ": " + l + "\n"
 			//fmt.Printf(results)
 		}
