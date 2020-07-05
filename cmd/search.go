@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -45,8 +46,10 @@ var workfile string
 //var opengork_history_avail bool
 //var opengrok_history_timestamp int64
 
+var homeCache , _ = os.UserCacheDir()
 
-const opengrokHistoryDir = "/tmp/opengrok_history/"
+var opengrokHistoryDir = path.Join(homeCache, "opengrok_history")
+const diff_time = 3600 * 24 * 30
 
 type FilePrio struct {
 	Path string
@@ -56,6 +59,20 @@ type FilePrio struct {
 
 func deferTime(t time.Time)  {
 	fmt.Printf("Elapsed time: %s\n", time.Since(t))
+}
+
+func deferClearCache() {
+	now_time := time.Now().Unix()
+	filepath.Walk(opengrokHistoryDir, func(path string, info os.FileInfo, err error) error {
+		if info == nil {
+			return err
+		}
+		if (now_time - info.ModTime().Unix()) > diff_time {
+			os.Remove(path)
+		}
+
+		return nil
+	})
 }
 
 // searchCmd represents the search command
@@ -71,6 +88,7 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		//fmt.Println("search called")
 		defer deferTime(time.Now())
+		defer deferClearCache()
 		var search_with_type  = false
 		files := make(chan FilePrio, 10)
 		var wg sync.WaitGroup
@@ -294,6 +312,8 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 			return nil, false
 		}
 	}
+
+	os.Chtimes(historyPath, time.Now(), time.Now())
 
 	fmt.Printf("\nloaded from %s\n", historyPath)
 	return keys, true
