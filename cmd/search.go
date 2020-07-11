@@ -20,13 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"html"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 
@@ -43,6 +43,7 @@ var def string
 var filename string
 var text string
 var workfile string
+var fcontent string
 //var opengork_history_avail bool
 //var opengrok_history_timestamp int64
 
@@ -131,15 +132,18 @@ to quickly create a Cobra application.`,
 		}
 		if len(symbol) != 0 {
 			search_with_type = true
+			fcontent = symbol
 			request_url = request_url + "&symbol=" + url.QueryEscape(symbol)
 		}
 		if len(def) != 0 {
 			search_with_type = true
+			fcontent = def
 			request_url = request_url + "&def=" + url.QueryEscape(def)
 		}
 		if len(text) != 0 {
 			//fmt.Printf("%s\n",text)
 			search_with_type = false
+			fcontent = text
 			request_url = request_url + "&full=" + url.QueryEscape(text)
 		}
 		historyKey := request_url
@@ -390,6 +394,8 @@ func requestOpengrok(files chan<- FilePrio, request_url string, sourceRoot strin
 
 func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, workfile string, sourceRoot string) {
 	//fmt.Println(mapsResult)
+	reg_sq := regexp.MustCompile(`<[^>]*>`)
+	reg_html := regexp.MustCompile(`(<html>)(.*)(<b>[\w.]+</b>)`)
 	processor := func(files chan<- FilePrio, p string, workfile string, wg *sync.WaitGroup, sourceRoot string, lines []interface{}) {
 		defer wg.Done()
 		var results string
@@ -414,17 +420,26 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 			vmap := v1.(map[string]interface{})
 			line := vmap["line"].(string)
 			lineNumber := vmap["lineNumber"].(string)
-			l, err := url.QueryUnescape(line)
-			if err != nil {
-				l = line
+			l := line
+			//l, err := url.QueryUnescape(line)
+			//if err != nil {
+			//	l = linete
 				//fmt.Println(err)
-			}
+			//}
 			if strings.Contains(l, "<html>") {
-				continue
+				l = reg_html.ReplaceAllString(l, `${3}:::${2}`)
+				//continue
 			}
-			l = html.UnescapeString(l)
-			l = strings.ReplaceAll(l, "<b>", "")
-			l = strings.ReplaceAll(l, "</b>", "")
+			//l = html.UnescapeString(l)
+			//l = strings.ReplaceAll(l, "<b>", "")
+			//l = strings.ReplaceAll(l, "</b>", "")
+			//l = strings.ReplaceAll(l, "<html>", fcontent + ":::")
+
+			l = reg_sq.ReplaceAllString(l, "")
+			l = strings.ReplaceAll(l,"&lt;", "<")
+			l = strings.ReplaceAll(l,"&gt;", ">")
+			l = strings.ReplaceAll(l, "&amp;", "&")
+			l = strings.ReplaceAll(l, "\r", "")
 
 			results += filepath + ":" + lineNumber + ": " + l + "\n"
 			//fmt.Printf(results)
