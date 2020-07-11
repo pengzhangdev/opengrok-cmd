@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -281,6 +282,24 @@ func md5v(historyKey string) string {
 }
 
 func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
+	get_execpath_mtime := func() int64 {
+		var exepath string
+		var err error
+		if exepath, err = exec.LookPath(os.Args[0]); err != nil {
+			return 0
+		}
+		if exepath, err = filepath.Abs(exepath); err != nil {
+			return 0
+		}
+		if exepath, err = filepath.EvalSymlinks(exepath); err != nil {
+			return 0
+		}
+		if stat, err := os.Lstat(exepath); err == nil {
+			return stat.ModTime().Unix()
+		}
+
+		return 0;
+	}
 	var keys []FilePrio
 	md5Key := md5v(historyKey)
 	historyPath := path.Join(opengrokHistoryDir, md5Key)
@@ -293,6 +312,9 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 	//	return nil, false
 	//}
 	opengrok_history_timestamp := s.ModTime().Unix()
+	if opengrok_history_timestamp < get_execpath_mtime() {
+		return nil, false
+	}
 
 	c, err := ioutil.ReadFile(historyPath)
 	if err != nil {
