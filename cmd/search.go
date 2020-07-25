@@ -77,6 +77,41 @@ func deferClearCache() {
 	})
 }
 
+func calPrio(target string, workfile string) int {
+	var matched int
+	var count int
+	if len(workfile) > 0 {
+		if len(workfile) < len(target) {
+			count = len(workfile)
+		} else {
+			count = len(target)
+		}
+		for matched = 0; matched < count; matched++ {
+			if workfile[matched] != target[matched] {
+				break
+			}
+		}
+		targetBaseName := path.Base(target)
+		wfBaseName := path.Base(workfile)
+		if len(targetBaseName) > len(wfBaseName) {
+			count = len(wfBaseName)
+		} else {
+			count = len(targetBaseName)
+		}
+		var baseMatched int = 0
+		for baseMatched = 0; baseMatched < count; baseMatched++ {
+			if targetBaseName[baseMatched] != wfBaseName[baseMatched] {
+				break
+			}
+		}
+		matched = matched + baseMatched
+	} else {
+		matched = len(target)
+	}
+
+	return -matched
+}
+
 // searchCmd represents the search command
 var searchCmd = &cobra.Command{
 	Use:   "search",
@@ -216,23 +251,7 @@ to quickly create a Cobra application.`,
 					wg.Add(1)
 					go func(key FilePrio, workfile string, wg *sync.WaitGroup, files chan<- FilePrio) {
 						defer wg.Done()
-						var matched int
-						var count int
-						if len(workfile) > 0 {
-							if len(workfile) < len(key.Path) {
-								count = len(workfile)
-							} else {
-								count = len(key.Path)
-							}
-							for matched = 0; matched < count; matched++ {
-								if workfile[matched] != key.Path[matched] {
-									break
-								}
-							}
-						} else {
-							matched = len(key.Path)
-						}
-						key.Prio = -matched
+						key.Prio = calPrio(key.Path, workfile)
 						//fmt.Printf("%v\n", key)
 						files <- key
 					}(key, workfile, &wg, files)
@@ -421,22 +440,6 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 	processor := func(files chan<- FilePrio, p string, workfile string, wg *sync.WaitGroup, sourceRoot string, lines []interface{}) {
 		defer wg.Done()
 		var results string
-		var count int //= len(workfile)
-		var matched = 0
-		if len(workfile) > 0 {
-			if len(workfile) < len(p) {
-				count = len(workfile)
-			} else {
-				count = len(p)
-			}
-			for matched = 0; matched < count; matched++ {
-				if workfile[matched] != p[matched] {
-					break
-				}
-			}
-		} else {
-			matched = len(p)
-		}
 		filepath := path.Join(sourceRoot, p)
 		for _, v1 := range lines {
 			vmap := v1.(map[string]interface{})
@@ -466,7 +469,7 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 			results += filepath + ":" + lineNumber + ": " + l + "\n"
 			//fmt.Printf(results)
 		}
-		files <- FilePrio{p, -matched, results}
+		files <- FilePrio{p, calPrio(p, workfile), results}
 	}
 	var wg sync.WaitGroup
 	for k := range mapsResult {
