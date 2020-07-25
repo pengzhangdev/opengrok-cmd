@@ -41,17 +41,17 @@ var configFile string
 var project string
 var symbol string
 var def string
-var filename string
+var _ string
 var text string
 var workfile string
-var fcontent string
+var _ string
 //var opengork_history_avail bool
 //var opengrok_history_timestamp int64
 
 var homeCache , _ = os.UserCacheDir()
 
 var opengrokHistoryDir = path.Join(homeCache, "opengrok_history")
-const diff_time = 3600 * 24 * 30
+const diffTime = 3600 * 24 * 30
 
 type FilePrio struct {
 	Path string
@@ -64,13 +64,13 @@ func deferTime(t time.Time)  {
 }
 
 func deferClearCache() {
-	now_time := time.Now().Unix()
-	filepath.Walk(opengrokHistoryDir, func(path string, info os.FileInfo, err error) error {
+	nowTime := time.Now().Unix()
+	_ = filepath.Walk(opengrokHistoryDir, func(path string, info os.FileInfo, err error) error {
 		if info == nil {
 			return err
 		}
-		if (now_time - info.ModTime().Unix()) > diff_time {
-			os.Remove(path)
+		if (nowTime - info.ModTime().Unix()) > diffTime {
+			_ = os.Remove(path)
 		}
 
 		return nil
@@ -91,26 +91,26 @@ to quickly create a Cobra application.`,
 		//fmt.Println("search called")
 		defer deferTime(time.Now())
 		defer deferClearCache()
-		var search_with_type  = false
+		var searchWithType = false
 		files := make(chan FilePrio, 10)
 		var wg sync.WaitGroup
 
 		// one reqeust and notify WaitGroup done
-		requestFunc := func (files chan<- FilePrio, request_url string, sourceRoot string, workfile string, wg* sync.WaitGroup) {
-			requestOpengrok(files, request_url, sourceRoot, workfile)
+		requestFunc := func (files chan<- FilePrio, requestUrl string, sourceRoot string, workfile string, wg* sync.WaitGroup) {
+			requestOpengrok(files, requestUrl, sourceRoot, workfile)
 			wg.Done()
 		}
 
 		sourceRoot := ""
 		buf, err := ioutil.ReadFile(configFile)
 		if err != nil {
-			fmt.Errorf("Failed to read %s, %v", configFile, err)
+			_ = fmt.Errorf("Failed to read %s, %v\n", configFile, err)
 			os.Exit(7)
 		}
-		xmls := strings.Split(string(buf), "\n")
-		for i, s := range xmls {
+		openworkXml := strings.Split(string(buf), "\n")
+		for i, s := range openworkXml {
 			if strings.Contains(s, "<void property=\"sourceRoot\">") {
-				sourceRoot = xmls[i+1]
+				sourceRoot = openworkXml[i+1]
 				break
 			}
 		}
@@ -118,13 +118,13 @@ to quickly create a Cobra application.`,
 		sourceRoot = strings.Split(sourceRoot, "<")[0]
 		//fmt.Printf("sourceRoot : %s\n", sourceRoot)
 		if len(sourceRoot) == 0 {
-			fmt.Errorf("sourceRoot not found\n")
+			_ = fmt.Errorf("sourceRoot not found\n")
 			os.Exit(6)
 		}
 
-		var request_url = "http://127.0.0.1:8080/source/api/v1/search?"
+		var requestUrl = "http://127.0.0.1:8080/source/api/v1/search?"
 		if len(project) != 0 {
-			request_url = request_url + "projects=" + project
+			requestUrl = requestUrl + "projects=" + project
 		} else {
 			os.Exit(1)
 		}
@@ -132,61 +132,61 @@ to quickly create a Cobra application.`,
 			os.Exit(5)
 		}
 		if len(symbol) != 0 {
-			search_with_type = true
-			fcontent = symbol
-			request_url = request_url + "&symbol=" + url.QueryEscape(symbol)
+			searchWithType = true
+			_ = symbol
+			requestUrl = requestUrl + "&symbol=" + url.QueryEscape(symbol)
 		}
 		if len(def) != 0 {
-			search_with_type = true
-			fcontent = def
-			request_url = request_url + "&def=" + url.QueryEscape(def)
+			searchWithType = true
+			_ = def
+			requestUrl = requestUrl + "&def=" + url.QueryEscape(def)
 		}
 		if len(text) != 0 {
 			//fmt.Printf("%s\n",text)
-			search_with_type = false
-			fcontent = text
-			request_url = request_url + "&full=" + url.QueryEscape(text)
+			searchWithType = false
+			_ = text
+			requestUrl = requestUrl + "&full=" + url.QueryEscape(text)
 		}
-		historyKey := request_url
+		historyKey := requestUrl
 		if len(workfile) != 0 {
 			fileSuffix := path.Ext(path.Base(workfile))
 			historyKey = historyKey + "&type=" + fileSuffix
 		}
 		var keys []FilePrio
-		keysLoaded, succ := loadHistory(historyKey, sourceRoot)
+		keysLoaded, success := loadHistory(historyKey, sourceRoot)
 
-		if succ == false {
-			if search_with_type == true && len(workfile) != 0 {
-				var typeurl string = ""
+		if success == false {
+			if searchWithType == true && len(workfile) != 0 {
+				var taper = ""
 				if strings.HasSuffix(workfile, ".java") {
-					typeurl = "&type=java"
+					taper = "&type=java"
 					wg.Add(1)
-					go requestFunc(files, request_url+typeurl, sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+taper, sourceRoot, workfile, &wg)
 				} else if strings.HasSuffix(workfile, ".cpp") || strings.HasSuffix(workfile, ".hpp") ||
 					strings.HasSuffix(workfile, ".h") || strings.HasSuffix(workfile, ".cc") {
 					wg.Add(3)
-					go requestFunc(files, request_url+"&type=cxx", sourceRoot, workfile, &wg)
-					go requestFunc(files, request_url+"&type=c", sourceRoot, workfile, &wg)
-					go requestFunc(files, request_url+"&type=asm", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=cxx", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=c", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=asm", sourceRoot, workfile, &wg)
 				} else if strings.HasSuffix(workfile, ".c") {
 					wg.Add(2)
-					go requestFunc(files, request_url+"&type=c", sourceRoot, workfile, &wg)
-					go requestFunc(files, request_url+"&type=asm", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=c", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=asm", sourceRoot, workfile, &wg)
 				} else if strings.HasSuffix(workfile, ".go") {
 					wg.Add(1)
-					go requestFunc(files, request_url+"&type=golang", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=golang", sourceRoot, workfile, &wg)
 				} else if strings.HasSuffix(workfile, ".py") {
 					wg.Add(1)
-					go requestFunc(files, request_url+"&type=python", sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl+"&type=python", sourceRoot, workfile, &wg)
 				} else {
 					wg.Add(1)
-					go requestFunc(files, request_url, sourceRoot, workfile, &wg)
+					go requestFunc(files, requestUrl, sourceRoot, workfile, &wg)
 				}
-				//request_url = request_url + typeurl
+				//request_url = request_url + taper
 
 			} else {
 				wg.Add(1)
-				go requestFunc(files, request_url, sourceRoot, workfile, &wg)
+				go requestFunc(files, requestUrl, sourceRoot, workfile, &wg)
 			}
 
 			// Waiting all requests done to close the Channel
@@ -204,9 +204,9 @@ to quickly create a Cobra application.`,
 			// resort the loaded data
 			if len(workfile) > 0 {
 				if sourceRoot[len(sourceRoot)-1] != '/' {
-					workfile = workfile[len(sourceRoot):len(workfile)]
+					workfile = workfile[len(sourceRoot):]
 				} else {
-					workfile = workfile[len(sourceRoot)-1 : len(workfile)]
+					workfile = workfile[len(sourceRoot)-1 :]
 				}
 			}
 			// re-calculate prio
@@ -260,7 +260,7 @@ to quickly create a Cobra application.`,
 		}
 
 		fmt.Printf("\n")
-		if succ == false {
+		if success == false {
 			saveHistory(historyKey, keys)
 		}
 
@@ -282,7 +282,7 @@ func md5v(historyKey string) string {
 }
 
 func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
-	get_execpath_mtime := func() int64 {
+	getExecpathMtime := func() int64 {
 		var exepath string
 		var err error
 		if exepath, err = exec.LookPath(os.Args[0]); err != nil {
@@ -298,7 +298,7 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 			return stat.ModTime().Unix()
 		}
 
-		return 0;
+		return 0
 	}
 	var keys []FilePrio
 	md5Key := md5v(historyKey)
@@ -311,8 +311,8 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 	//if (time.Now().Unix() - s.ModTime().Unix() > 60 * 60 * 8) {
 	//	return nil, false
 	//}
-	opengrok_history_timestamp := s.ModTime().Unix()
-	if opengrok_history_timestamp < get_execpath_mtime() {
+	opengrokHistoryTimestamp := s.ModTime().Unix()
+	if opengrokHistoryTimestamp < getExecpathMtime() {
 		return nil, false
 	}
 
@@ -334,12 +334,12 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 		if os.IsNotExist(err) {
 			return nil, false
 		}
-		if s.ModTime().Unix() > opengrok_history_timestamp {
+		if s.ModTime().Unix() > opengrokHistoryTimestamp {
 			return nil, false
 		}
 	}
 
-	os.Chtimes(historyPath, time.Now(), time.Now())
+	_ = os.Chtimes(historyPath, time.Now(), time.Now())
 
 	fmt.Printf("\nloaded from %s\n", historyPath)
 	return keys, true
@@ -347,12 +347,12 @@ func loadHistory(historyKey string, sourceRoot string) ([]FilePrio, bool) {
 
 func saveHistory(historyKey string, keys []FilePrio) bool {
 	md5Key := md5v(historyKey)
-	os.Mkdir(opengrokHistoryDir, os.ModePerm)
+	_ = os.Mkdir(opengrokHistoryDir, os.ModePerm)
 	historyPath := path.Join(opengrokHistoryDir, md5Key)
 	f, err := os.OpenFile(historyPath, os.O_WRONLY | os.O_CREATE, os.ModePerm)
 	if err != nil {
 		//fmt.Printf("%v\n", err)
-		return false;
+		return false
 	}
 
 	defer f.Close()
@@ -367,7 +367,7 @@ func saveHistory(historyKey string, keys []FilePrio) bool {
 		return false
 	}
 	//fmt.Printf("ret: %s\n", ret)
-	f.Write(ret)
+	_, _ = f.Write(ret)
 	fmt.Printf("saved to %s\n", historyPath)
 
 	return true
@@ -402,9 +402,9 @@ func requestOpengrok(files chan<- FilePrio, request_url string, sourceRoot strin
 
 		//fmt.Println("workfile %s sourceRoot %s\n", workfile, sourceRoot)
 		if sourceRoot[len(sourceRoot)-1] != '/' {
-			workfile = workfile[len(sourceRoot):len(workfile)]
+			workfile = workfile[len(sourceRoot):]
 		} else {
-			workfile = workfile[len(sourceRoot)-1 : len(workfile)]
+			workfile = workfile[len(sourceRoot)-1 :]
 		}
 
 		{
@@ -416,8 +416,8 @@ func requestOpengrok(files chan<- FilePrio, request_url string, sourceRoot strin
 
 func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, workfile string, sourceRoot string) {
 	//fmt.Println(mapsResult)
-	reg_sq := regexp.MustCompile(`<[^>]*>`)
-	reg_html := regexp.MustCompile(`(<html>)(.*)(<b>[\w.]+</b>)`)
+	regSq := regexp.MustCompile(`<[^>]*>`)
+	regHtml := regexp.MustCompile(`(<html>)(.*)(<b>[\w.]+</b>)`)
 	processor := func(files chan<- FilePrio, p string, workfile string, wg *sync.WaitGroup, sourceRoot string, lines []interface{}) {
 		defer wg.Done()
 		var results string
@@ -449,7 +449,7 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 				//fmt.Println(err)
 			//}
 			if strings.Contains(l, "<html>") {
-				l = reg_html.ReplaceAllString(l, `${3}:::${2}`)
+				l = regHtml.ReplaceAllString(l, `${3}:::${2}`)
 				//continue
 			}
 			//l = html.UnescapeString(l)
@@ -457,7 +457,7 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 			//l = strings.ReplaceAll(l, "</b>", "")
 			//l = strings.ReplaceAll(l, "<html>", fcontent + ":::")
 
-			l = reg_sq.ReplaceAllString(l, "")
+			l = regSq.ReplaceAllString(l, "")
 			l = strings.ReplaceAll(l,"&lt;", "<")
 			l = strings.ReplaceAll(l,"&gt;", ">")
 			l = strings.ReplaceAll(l, "&amp;", "&")
