@@ -109,6 +109,10 @@ func calPrio(target string, workfile string) int {
 		matched = len(target)
 	}
 
+	if strings.Contains(strings.ToLower(target), "/test") {
+		matched = matched - 100
+	}
+
 	return -matched
 }
 
@@ -436,7 +440,7 @@ func requestOpengrok(files chan<- FilePrio, request_url string, sourceRoot strin
 func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, workfile string, sourceRoot string) {
 	//fmt.Println(mapsResult)
 	regSq := regexp.MustCompile(`<[^>]*>`)
-	regHtml := regexp.MustCompile(`(<html>)(.*)(<b>[\w.]+</b>)`)
+	//regHtml := regexp.MustCompile(`(<html>)(.*)(<b>[\w.]+</b>)`)
 	processor := func(files chan<- FilePrio, p string, workfile string, wg *sync.WaitGroup, sourceRoot string, lines []interface{}) {
 		defer wg.Done()
 		var results string
@@ -451,10 +455,10 @@ func processFilePrio(files chan<- FilePrio, mapsResult map[string]interface{}, w
 			//	l = linete
 				//fmt.Println(err)
 			//}
-			if strings.Contains(l, "<html>") {
-				l = regHtml.ReplaceAllString(l, `${3}:::${2}`)
+			//if strings.Contains(l, "<html>") {
+			//	l = regHtml.ReplaceAllString(l, `${3}:::${2}`)
 				//continue
-			}
+			//}
 			//l = html.UnescapeString(l)
 			//l = strings.ReplaceAll(l, "<b>", "")
 			//l = strings.ReplaceAll(l, "</b>", "")
