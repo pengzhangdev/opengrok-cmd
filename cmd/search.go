@@ -44,7 +44,7 @@ var def string
 var _ string
 var text string
 var workfile string
-var _ string
+var searchPattern string
 //var opengork_history_avail bool
 //var opengrok_history_timestamp int64
 
@@ -77,6 +77,43 @@ func deferClearCache() {
 	})
 }
 
+// ld compares two strings and returns the levenshtein distance between them.
+func levenshteinDistance(s, t string, ignoreCase bool) int {
+	if ignoreCase {
+		s = strings.ToLower(s)
+		t = strings.ToLower(t)
+	}
+	d := make([][]int, len(s)+1)
+	for i := range d {
+		d[i] = make([]int, len(t)+1)
+	}
+	for i := range d {
+		d[i][0] = i
+	}
+	for j := range d[0] {
+		d[0][j] = j
+	}
+	for j := 1; j <= len(t); j++ {
+		for i := 1; i <= len(s); i++ {
+			if s[i-1] == t[j-1] {
+				d[i][j] = d[i-1][j-1]
+			} else {
+				min := d[i-1][j]
+				if d[i][j-1] < min {
+					min = d[i][j-1]
+				}
+				if d[i-1][j-1] < min {
+					min = d[i-1][j-1]
+				}
+				d[i][j] = min + 1
+			}
+		}
+
+	}
+	return d[len(s)][len(t)]
+}
+
+
 func calPrio(target string, workfile string) int {
 	var matched int
 	var count int
@@ -91,6 +128,7 @@ func calPrio(target string, workfile string) int {
 				break
 			}
 		}
+		/*
 		targetBaseName := path.Base(target)
 		wfBaseName := path.Base(workfile)
 		if len(targetBaseName) > len(wfBaseName) {
@@ -104,7 +142,12 @@ func calPrio(target string, workfile string) int {
 				break
 			}
 		}
-		matched = matched + baseMatched
+		 */
+		if (matched != 0) {  // prefix first
+			matched = matched * 10 - levenshteinDistance(path.Base(workfile), path.Base(target), false)
+		} else {
+			matched = matched * 10 - levenshteinDistance(workfile, target, false) - levenshteinDistance(searchPattern, target, true) * 10 / len(target)
+		}
 	} else {
 		matched = len(target)
 	}
@@ -172,18 +215,18 @@ to quickly create a Cobra application.`,
 		}
 		if len(symbol) != 0 {
 			searchWithType = true
-			_ = symbol
+			searchPattern = symbol
 			requestUrl = requestUrl + "&symbol=" + url.QueryEscape(symbol)
 		}
 		if len(def) != 0 {
 			searchWithType = true
-			_ = def
+			searchPattern = def
 			requestUrl = requestUrl + "&def=" + url.QueryEscape(def)
 		}
 		if len(text) != 0 {
 			//fmt.Printf("%s\n",text)
 			searchWithType = false
-			_ = text
+			searchPattern = text
 			requestUrl = requestUrl + "&full=" + url.QueryEscape(text)
 		}
 		historyKey := requestUrl
