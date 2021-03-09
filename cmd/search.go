@@ -260,6 +260,9 @@ to quickly create a Cobra application.`,
 				} else if strings.HasSuffix(workfile, ".py") {
 					wg.Add(1)
 					go requestFunc(files, requestUrl+"&type=python", sourceRoot, workfile, &wg)
+				} else if strings.HasSuffix(workfile, ".rs") {
+					wg.Add(1)
+					go requestFunc(files, requestUrl+"&type=rust", sourceRoot, workfile, &wg)
 				} else {
 					wg.Add(1)
 					go requestFunc(files, requestUrl, sourceRoot, workfile, &wg)
